@@ -1,0 +1,50 @@
+version: 2.1
+
+orbs:
+  browser-tools: circleci/browser-tools@1
+  node: circleci/node@5
+
+jobs:
+  test:
+    docker:
+      - image: cimg/node:16.16-browsers
+        environment:
+          TZ: "America/New_York"
+    resource_class: small
+    steps:
+      - run: |
+          set +e
+          RES=$(curl -s -f -H "X-Space-App-Key: $UNC_APP_API_KEY" https://$UNC_APP_HOST/sched/active)
+          if [ $? != 0 ]; then
+            echo "Failed to get active schedules..."
+            circleci-agent step halt
+          fi
+          if [ "$RES" == "[]" ]; then
+            echo "No active schedules..."
+            circleci-agent step halt
+          fi
+      - checkout
+      # restore folders with npm dependencies and Cypress binary
+      - restore_cache:
+          keys:
+            - cache-{{ checksum "package.json" }}
+      # install npm dependencies and Cypress binary
+      # if they were cached, this step is super quick
+      - node/install-packages
+      - run:
+          command: npx cypress verify
+          name: Verify Cypress
+      # save npm dependencies and Cypress binary for future runs
+      - save_cache:
+          key: cache-{{ checksum "package.json" }}
+          paths:
+            - ~/.npm
+            - ~/.cache
+      - run: "npx cypress run --env UNC_APP_HOST=$UNC_APP_HOST,UNC_APP_API_KEY=$UNC_APP_API_KEY,UNC_USER=$UNC_USER,UNC_PSWD='$UNC_PSWD'"
+      - store_artifacts:
+          path: ~/project/cypress/screenshots
+
+workflows:
+  build:
+    jobs:
+      - test

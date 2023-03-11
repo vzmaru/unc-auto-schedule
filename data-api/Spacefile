@@ -1,0 +1,7 @@
+v: 0
+micros:
+  - name: node-micro
+    src: src/node
+    engine: nodejs16
+    run: "node index.js"
+
